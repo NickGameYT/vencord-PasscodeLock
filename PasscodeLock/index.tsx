@@ -12,39 +12,149 @@ type SetMode = false | "new" | "confirm" | "decoyNew" | "decoyConfirm";
 
 const Native = VencordNative.pluginHelpers.PasscodeLock as PluginNative<typeof import("./native")>;
 
+type Lang = "en" | "ru";
+
+const STRINGS = {
+    en: {
+        hintNew: "New unlock code",
+        hintConfirm: "Confirm unlock code",
+        hintDecoyNew: "Decoy code (logout + Telegram)",
+        hintDecoyConfirm: "Confirm decoy code",
+        hintLocked: "Discord is locked",
+        subDecoy: "Logs out silently and sends a Telegram alert",
+        subSetup: "Digits only, no spaces",
+        subUnlock: "Enter your passcode",
+        wrongPassword: "Wrong password",
+        codesMismatch: "Codes do not match",
+        mustNotMatchDecoy: "Must not match the decoy code",
+        mustNotMatchMain: "Must not match the main code",
+        mainSet: "Main code set",
+        decoySet: "Decoy code set",
+        decoyCleared: "Decoy code removed",
+        setMainFirst: "Set the main code first",
+        setCodeFirst: "Set a code first (PasscodeLock settings)",
+        voiceSkip: "In a voice call — lock skipped",
+        cancel: "Cancel",
+        aboutMain: "Main code unlocks Discord. Decoy code logs out silently and alerts Telegram.",
+        aboutTg: "Chat id is your Telegram user id (not Discord). Message the bot /start, then Bind Telegram.",
+        aboutTgBound: " Current: {id}",
+        aboutTgUnbound: " Not bound yet.",
+        btnSetMain: "Set main code",
+        btnSetDecoy: "Set decoy code",
+        btnLockNow: "Lock now",
+        btnBindTg: "Bind Telegram",
+        btnTestTg: "Test Telegram",
+        btnClearDecoy: "Remove decoy code",
+        tgNoToken: "Set the bot token in settings first",
+        tgStartAgain: "Message the bot /start in Telegram, then try again",
+        tgBound: "Telegram bound: {id}",
+        tgNoTokenShort: "No bot token",
+        tgNoChat: "No chat id — /start the bot, then Bind",
+        tgTestOk: "PasscodeLock: connection test OK",
+        tgTestSent: "Test message sent to Telegram",
+        tgError: "Telegram error: {err}",
+        tgSendFail: "Failed to send Telegram message",
+        tgAlertTitle: "PasscodeLock: decoy code entered",
+        tgAlertTime: "Time: {time}",
+    },
+    ru: {
+        hintNew: "Новый код разблокировки",
+        hintConfirm: "Повторите основной код",
+        hintDecoyNew: "Ложный код (logout + Telegram)",
+        hintDecoyConfirm: "Повторите ложный код",
+        hintLocked: "Discord заблокирован",
+        subDecoy: "Тихий выход из аккаунта и сообщение в Telegram",
+        subSetup: "Только цифры, без пробелов",
+        subUnlock: "Введите код доступа",
+        wrongPassword: "Неверный пароль",
+        codesMismatch: "Коды не совпадают",
+        mustNotMatchDecoy: "Не должен совпадать с ложным",
+        mustNotMatchMain: "Не должен совпадать с основным",
+        mainSet: "Основной код установлен",
+        decoySet: "Ложный код установлен",
+        decoyCleared: "Ложный код удалён",
+        setMainFirst: "Сначала задай основной код",
+        setCodeFirst: "Сначала задай код (настройки PasscodeLock)",
+        voiceSkip: "Сейчас в голосовом звонке — блокировка пропущена",
+        cancel: "Отмена",
+        aboutMain: "Основной код разблокирует. Ложный код без надписей выходит из аккаунта и пишет в Telegram.",
+        aboutTg: "Chat id — это Telegram user id (не Discord). Напиши боту /start → «Привязать Telegram».",
+        aboutTgBound: " Сейчас: {id}",
+        aboutTgUnbound: " Пока не привязан.",
+        btnSetMain: "Задать основной код",
+        btnSetDecoy: "Задать ложный код",
+        btnLockNow: "Заблокировать сейчас",
+        btnBindTg: "Привязать Telegram",
+        btnTestTg: "Тест Telegram",
+        btnClearDecoy: "Удалить ложный код",
+        tgNoToken: "Сначала укажи bot token в настройках",
+        tgStartAgain: "Напиши боту /start в Telegram и нажми снова",
+        tgBound: "Telegram привязан: {id}",
+        tgNoTokenShort: "Нет bot token",
+        tgNoChat: "Нет chat id — напиши боту /start и нажми «Привязать»",
+        tgTestOk: "PasscodeLock: тест связи OK",
+        tgTestSent: "Тест отправлен в Telegram",
+        tgError: "Telegram ошибка: {err}",
+        tgSendFail: "Не удалось отправить в Telegram",
+        tgAlertTitle: "PasscodeLock: введён ложный код",
+        tgAlertTime: "Время: {time}",
+    },
+} as const;
+
+type StringKey = keyof typeof STRINGS.en;
+
+function t(key: StringKey, vars?: Record<string, string | number>) {
+    const lang = (settings.store.uiLanguage as Lang) || "en";
+    let s: string = STRINGS[lang]?.[key] ?? STRINGS.en[key];
+    if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+            s = s.split(`{${k}}`).join(String(v));
+        }
+    }
+    return s;
+}
+
 const settings = definePluginSettings({
+    uiLanguage: {
+        type: OptionType.SELECT,
+        description: "Plugin UI language",
+        options: [
+            { label: "English", value: "en", default: true },
+            { label: "Русский", value: "ru" },
+        ],
+    },
     codeLength: {
         type: OptionType.SELECT,
-        description: "Длина кода",
+        description: "Passcode length",
         options: [
-            { label: "4 цифры", value: "4", default: true },
-            { label: "6 цифр", value: "6" },
+            { label: "4 digits", value: "4", default: true },
+            { label: "6 digits", value: "6" },
         ],
     },
     autoLockMinutes: {
         type: OptionType.SELECT,
-        description: "Автоблокировка после потери фокуса",
+        description: "Auto-lock after window loses focus",
         options: [
-            { label: "Выкл", value: "0", default: true },
-            { label: "1 минута", value: "1" },
-            { label: "5 минут", value: "5" },
-            { label: "15 минут", value: "15" },
-            { label: "60 минут", value: "60" },
+            { label: "Off", value: "0", default: true },
+            { label: "1 minute", value: "1" },
+            { label: "5 minutes", value: "5" },
+            { label: "15 minutes", value: "15" },
+            { label: "60 minutes", value: "60" },
         ],
     },
     lockOnStartup: {
         type: OptionType.BOOLEAN,
-        description: "Блокировать Discord при запуске",
+        description: "Lock Discord on startup",
         default: true,
     },
     telegramBotToken: {
         type: OptionType.STRING,
-        description: "Telegram bot token (для алерта по ложному коду)",
+        description: "Telegram bot token (for decoy alerts)",
         default: "",
     },
     telegramChatId: {
         type: OptionType.STRING,
-        description: "Telegram chat id (куда слать алерт)",
+        description: "Telegram chat id (where alerts are sent)",
         default: "",
     },
     wasLocked: {
@@ -212,9 +322,9 @@ async function notifyDecoyTelegram() {
     } catch { /* ignore */ }
 
     const text = [
-        "PasscodeLock: введён ложный код",
+        t("tgAlertTitle"),
         `Discord: ${who}`,
-        `Время: ${new Date().toLocaleString()}`,
+        t("tgAlertTime", { time: new Date().toLocaleString() }),
     ].join("\n");
 
     try {
@@ -225,34 +335,34 @@ async function notifyDecoyTelegram() {
 async function bindTelegramChat() {
     const token = settings.store.telegramBotToken?.trim();
     if (!token) {
-        showToast("Сначала укажи bot token в настройках", Toasts.Type.FAILURE);
+        showToast(t("tgNoToken"), Toasts.Type.FAILURE);
         return;
     }
     const chatId = await resolveTelegramChatId(token, true);
     if (!chatId) {
-        showToast("Напиши боту /start в Telegram и нажми снова", Toasts.Type.FAILURE);
+        showToast(t("tgStartAgain"), Toasts.Type.FAILURE);
         return;
     }
-    showToast(`Telegram привязан: ${chatId}`, Toasts.Type.SUCCESS);
+    showToast(t("tgBound", { id: chatId }), Toasts.Type.SUCCESS);
 }
 
 async function testTelegram() {
     const token = settings.store.telegramBotToken?.trim();
     if (!token) {
-        showToast("Нет bot token", Toasts.Type.FAILURE);
+        showToast(t("tgNoTokenShort"), Toasts.Type.FAILURE);
         return;
     }
     const chatId = await resolveTelegramChatId(token);
     if (!chatId) {
-        showToast("Нет chat id — напиши боту /start и нажми «Привязать»", Toasts.Type.FAILURE);
+        showToast(t("tgNoChat"), Toasts.Type.FAILURE);
         return;
     }
     try {
-        const data = await Native.sendTelegramMessage(token, chatId, "PasscodeLock: тест связи OK");
-        if (data?.ok) showToast("Тест отправлен в Telegram", Toasts.Type.SUCCESS);
-        else showToast("Telegram ошибка: " + (data?.description || data?.status), Toasts.Type.FAILURE);
+        const data = await Native.sendTelegramMessage(token, chatId, t("tgTestOk"));
+        if (data?.ok) showToast(t("tgTestSent"), Toasts.Type.SUCCESS);
+        else showToast(t("tgError", { err: data?.description || data?.status }), Toasts.Type.FAILURE);
     } catch {
-        showToast("Не удалось отправить в Telegram", Toasts.Type.FAILURE);
+        showToast(t("tgSendFail"), Toasts.Type.FAILURE);
     }
 }
 
@@ -282,7 +392,7 @@ function openSetPasscode() {
 
 function openSetDecoy() {
     if (!hasPasscode()) {
-        showToast("Сначала задай основной код", Toasts.Type.FAILURE);
+        showToast(t("setMainFirst"), Toasts.Type.FAILURE);
         return;
     }
     lockState.setPassMode = "decoyNew";
@@ -295,18 +405,18 @@ function clearDecoy() {
     settings.store.decoyHash = "";
     settings.store.decoySalt = "";
     settings.store.decoyIterations = 4000;
-    showToast("Ложный код удалён", Toasts.Type.MESSAGE);
+    showToast(t("decoyCleared"), Toasts.Type.MESSAGE);
 }
 
 function lockNow(opts?: { silent?: boolean; }) {
     if (isInVoiceCall()) {
         if (!opts?.silent) {
-            showToast("Сейчас в голосовом звонке — блокировка пропущена", Toasts.Type.MESSAGE);
+            showToast(t("voiceSkip"), Toasts.Type.MESSAGE);
         }
         return;
     }
     if (!hasPasscode()) {
-        showToast("Сначала задай код (кнопка в настройках PasscodeLock)", Toasts.Type.FAILURE);
+        showToast(t("setCodeFirst"), Toasts.Type.FAILURE);
         openSetPasscode();
         return;
     }
@@ -329,6 +439,7 @@ function LockIcon() {
 }
 
 function LockOverlay() {
+    settings.use(["uiLanguage"]);
     const [, bump] = useState(0);
     useEffect(() => {
         const fn = () => bump(x => x + 1);
@@ -350,18 +461,18 @@ function LockOverlay() {
     }, []);
 
     const hint =
-        mode === "new" ? "Новый код разблокировки" :
-            mode === "confirm" ? "Повторите основной код" :
-                mode === "decoyNew" ? "Ложный код (logout + Telegram)" :
-                    mode === "decoyConfirm" ? "Повторите ложный код" :
-                        "Discord заблокирован";
+        mode === "new" ? t("hintNew") :
+            mode === "confirm" ? t("hintConfirm") :
+                mode === "decoyNew" ? t("hintDecoyNew") :
+                    mode === "decoyConfirm" ? t("hintDecoyConfirm") :
+                        t("hintLocked");
 
     const subhint =
         mode === "decoyNew" || mode === "decoyConfirm"
-            ? "Выход из аккаунта без надписей + сообщение в Telegram"
+            ? t("subDecoy")
             : mode
-                ? "Только цифры, без пробелов"
-                : "Введите код доступа";
+                ? t("subSetup")
+                : t("subUnlock");
 
     useEffect(() => {
         setDigits("");
@@ -369,7 +480,7 @@ function LockOverlay() {
         setErrorText("");
     }, [mode, lockState.locked]);
 
-    const failShake = (message = "Неверный пароль") => {
+    const failShake = (message = t("wrongPassword")) => {
         setDigits("");
         setErrorText(message);
         setShake(false);
@@ -393,7 +504,7 @@ function LockOverlay() {
             }
             if (mode === "confirm" || mode === "decoyConfirm") {
                 if (value !== lockState.pendingNew) {
-                    failShake("Коды не совпадают");
+                    failShake(t("codesMismatch"));
                     lockState.setPassMode = mode === "confirm" ? "new" : "decoyNew";
                     lockState.pendingNew = "";
                     emit();
@@ -407,7 +518,7 @@ function LockOverlay() {
                             iterations: settings.store.decoyIterations || 4000,
                         });
                         if (sameAsDecoy) {
-                            failShake("Не должен совпадать с ложным");
+                            failShake(t("mustNotMatchDecoy"));
                             lockState.setPassMode = "new";
                             lockState.pendingNew = "";
                             emit();
@@ -421,7 +532,7 @@ function LockOverlay() {
                     lockState.setPassMode = false;
                     lockState.pendingNew = "";
                     setLocked(false);
-                    showToast("Основной код установлен", Toasts.Type.SUCCESS);
+                    showToast(t("mainSet"), Toasts.Type.SUCCESS);
                     return;
                 }
                 const sameAsReal = await checkPasscode(value, {
@@ -430,7 +541,7 @@ function LockOverlay() {
                     iterations: settings.store.iterations || 4000,
                 });
                 if (sameAsReal) {
-                    failShake("Не должен совпадать с основным");
+                    failShake(t("mustNotMatchMain"));
                     lockState.setPassMode = "decoyNew";
                     lockState.pendingNew = "";
                     emit();
@@ -443,7 +554,7 @@ function LockOverlay() {
                 lockState.setPassMode = false;
                 lockState.pendingNew = "";
                 setLocked(false);
-                showToast("Ложный код установлен", Toasts.Type.SUCCESS);
+                showToast(t("decoySet"), Toasts.Type.SUCCESS);
                 return;
             }
 
@@ -465,13 +576,13 @@ function LockOverlay() {
                 });
                 if (decoy) {
                     decoyTriggered = true;
-                    // No on-screen "Выход…" text — silently notify + logout
+                    // No on-screen exit banner — silently notify + logout
                     void notifyDecoyTelegram().finally(() => forceLogout());
                     return;
                 }
             }
 
-            failShake("Неверный пароль");
+            failShake(t("wrongPassword"));
         } finally {
             if (!decoyTriggered) setBusy(false);
         }
@@ -570,7 +681,7 @@ function LockOverlay() {
                             emit();
                         }}
                     >
-                        Отмена
+                        {t("cancel")}
                     </button>
                 )}
             </div>
@@ -817,27 +928,28 @@ function setupAutolock() {
 }
 
 function SettingsAbout() {
+    settings.use(["uiLanguage", "telegramChatId"]);
     const chat = settings.store.telegramChatId?.trim();
     return (
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
             <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                Основной код разблокирует. Ложный код без надписей выходит из аккаунта и пишет в Telegram.
+                {t("aboutMain")}
             </span>
             <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                Chat id — это Telegram user id (не Discord). Напиши боту /start → «Привязать Telegram».
-                {chat ? ` Сейчас: ${chat}` : " Пока не привязан."}
+                {t("aboutTg")}
+                {chat ? t("aboutTgBound", { id: chat }) : t("aboutTgUnbound")}
             </span>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Button onClick={() => openSetPasscode()}>Задать основной код</Button>
-                <Button onClick={() => openSetDecoy()}>Задать ложный код</Button>
+                <Button onClick={() => openSetPasscode()}>{t("btnSetMain")}</Button>
+                <Button onClick={() => openSetDecoy()}>{t("btnSetDecoy")}</Button>
                 <Button color={Button.Colors.PRIMARY} look={Button.Looks.OUTLINED} onClick={() => lockNow()}>
-                    Заблокировать сейчас
+                    {t("btnLockNow")}
                 </Button>
-                <Button onClick={() => void bindTelegramChat()}>Привязать Telegram</Button>
-                <Button look={Button.Looks.OUTLINED} onClick={() => void testTelegram()}>Тест Telegram</Button>
+                <Button onClick={() => void bindTelegramChat()}>{t("btnBindTg")}</Button>
+                <Button look={Button.Looks.OUTLINED} onClick={() => void testTelegram()}>{t("btnTestTg")}</Button>
                 {hasDecoy() && (
                     <Button color={Button.Colors.RED} look={Button.Looks.LINK} onClick={() => clearDecoy()}>
-                        Удалить ложный код
+                        {t("btnClearDecoy")}
                     </Button>
                 )}
             </div>
